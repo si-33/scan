@@ -1,0 +1,53 @@
+pipeline {
+  agent any
+
+  environment {
+    DISABLE_SPINNER = "TRUE"
+    ACCUKNOX_ENDPOINT = "cspm.demo.accuknox.com"
+    ACCUKNOX_LABEL = "AccuKnoxInfyPOC"
+    ACCUKNOX_TOKEN = credentials('ACCUKNOX_TOKEN')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install ASPM scanner') {
+      steps {
+        sh '''
+          set -e
+          python3 -m pip install --user \
+            https://github.com/accuknox/aspm-scanner-cli/releases/download/v0.13.4/accuknox_aspm_scanner-0.13.4-py3-none-any.whl --break-system-packages
+        '''
+      }
+    }
+
+    stage('Run IaC Scan') {
+      environment {
+        SOFT_FAIL = "true"
+        DIRECTORY = "."
+        COMPACT = "true"
+        QUIET = "true"
+        FILE = ""
+        FRAMEWORK = ""
+      }
+      steps {
+        script {
+          def softFailArg = (env.SOFT_FAIL == 'true') ? '--softfail' : ''
+          def cmdArgs = ""
+          if (env.FILE?.trim())       { cmdArgs += " --file ${env.FILE}" }
+          if (env.DIRECTORY?.trim())  { cmdArgs += " --directory ${env.DIRECTORY}" }
+          if (env.COMPACT == 'true')  { cmdArgs += " --compact" }
+          if (env.QUIET == 'true')    { cmdArgs += " --quiet" }
+          if (env.FRAMEWORK?.trim())  { cmdArgs += " --framework ${env.FRAMEWORK}" }
+          def fullCmd = "~/.local/bin/accuknox-aspm-scanner scan ${softFailArg} iac --command \"${cmdArgs}\" --container-mode"
+          echo "Running: ${fullCmd}"
+          sh fullCmd
+        }
+      }
+    }
+  } 
+}
