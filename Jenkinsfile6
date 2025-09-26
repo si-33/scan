@@ -1,0 +1,49 @@
+pipeline {
+  agent any
+
+  environment {
+    DISABLE_SPINNER = "TRUE"
+
+    ACCUKNOX_ENDPOINT = "cspm.demo.accuknox.com"
+    ACCUKNOX_LABEL = "AccuKnoxInfyPOC"
+    ACCUKNOX_TOKEN = credentials('ACCUKNOX_TOKEN')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install ASPM scanner') {
+      steps {
+        sh '''
+          set -e
+          python3 -m pip install --user \
+            https://github.com/accuknox/aspm-scanner-cli/releases/download/v0.13.4/accuknox_aspm_scanner-0.13.4-py3-none-any.whl --break-system-packages
+        '''
+      }a
+    }
+
+    stage('Run Container Scan') {
+      environment {
+        SOFT_FAIL = "true"
+        IMAGE = "test"
+        IMAGE_TAG = "latest"
+        SEVERITY = "CRITICAL,HIGH,WARNING,MEDIUM,LOW,INFO"
+      }
+      steps {
+        script {
+          def softFailArg = (env.SOFT_FAIL == 'true') ? '--softfail' : ''
+
+          echo "Building Docker image ${env.IMAGE}:${env.IMAGE_TAG}..."
+          sh "docker build -t ${env.IMAGE}:${env.IMAGE_TAG} -f Dockerfile ."
+          def cmd = "image ${env.IMAGE}:${env.IMAGE_TAG}"
+          if (env.SEVERITY?.trim())   { cmd += " --severity ${env.SEVERITY}" }
+          def fullCmd = "~/.local/bin/accuknox-aspm-scanner scan ${softFailArg} container --command \"${cmd}\" --container-mode"
+          echo "Running: ${fullCmd}"
+          sh fullCmd
+        }
+      }
+    }
