@@ -43,3 +43,5 @@ stage('Run SAST Scan') {
           sh fullCmd
         }
       }
+}
+}
