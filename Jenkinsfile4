@@ -1,5 +1,3 @@
-iac
-
 pipeline {
   agent any
 
